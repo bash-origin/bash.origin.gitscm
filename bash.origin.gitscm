@@ -1,0 +1,75 @@
+#!/bin/bash
+# Source https://github.com/cadorn/bash.origin
+. "$HOME/.bash.origin"
+function init {
+		eval BO_SELF_BASH_SOURCE="$BO_READ_SELF_BASH_SOURCE"
+		BO_deriveSelfDir ___TMP___ "$BO_SELF_BASH_SOURCE"
+		local __BO_DIR__="$___TMP___"
+
+
+		function new {
+
+				prefix="${1}"
+
+				if [ "$prefix" != "BO_GIT" ]; then
+						echo "ERROR: Prefix must be set to 'BO_GIT'. This requirement will be removed when we have macros for bash files."
+						exit 1
+				fi
+
+				BO_log "$VERBOSE" "New 'bash.origin.gitscm' instance with prefix '${prefix}'"
+
+				export ${prefix}="github.com/bash-origin/bash.origin.gitscm"
+
+
+				function BO_GIT_repositoryPathForWorkingDirectory {
+						if [ -f "$2/HEAD" ]; then
+								BO_setResult "$1" "$2"
+								return 0;
+						elif [ -d "$2/.git" ]; then
+								BO_setResult "$1" "$2/.git"
+								return 0;
+						else
+								GIT_repositoryPathForWorkingDirectory "$1" "${2}/$(cat $2/.git | perl -pe 's/^gitdir:\s+(.+?)$/$1/')"
+								if [ ! -z "$1" ]; then
+										return 0;
+								fi
+						fi
+						BO_setResult "$1" ""
+						return 1;
+				}
+
+
+				function BO_GIT_ensureLocalRepositoryExcludeRuleForWorkingDirectory {
+						local repoPath=""
+						GIT_repositoryPathForWorkingDirectory "repoPath" "$1"
+						if [ -z "$repoPath" ]; then
+								return 1
+						fi
+						if [ -f "$repoPath/HEAD" ]; then
+								if [ ! -d "${repoPath}/info" ]; then
+										mkdir "${repoPath}/info"
+								fi
+								local excludeFilePath="${repoPath}/info/exclude"
+								if [ ! -e "${excludeFilePath}" ]; then
+										touch "${excludeFilePath}"
+								fi
+								# Ensure trailing newline
+								# @source http://stackoverflow.com/a/16198793/330439
+								[[ $(tail -c1 "$excludeFilePath") && -f "$excludeFilePath" ]] && echo '' >> "$excludeFilePath"
+								BO_log "$VERBOSE" "Checking rule '^${2}$' against exclude file: '$excludeFilePath'"
+								if ! grep -qe "^${2}$" "$excludeFilePath"; then
+										BO_log "$VERBOSE" "Append '${3}' to exclude file: '$excludeFilePath'"
+										echo -e "${3}" >> "$excludeFilePath"
+								fi
+
+								return 0
+						fi
+
+						echo "[bash.origin.gitscm] TODO: Implement [ref: 02jnd763hflsi]"
+						return 1
+				}
+
+		}
+
+}
+init
