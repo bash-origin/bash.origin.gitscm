@@ -1,5 +1,4 @@
 {
     "name": "bash.origin.gitscm",
-    "version": "0.1.0",
-    "pm": "git"
+    "version": "0.1.0"
 }
