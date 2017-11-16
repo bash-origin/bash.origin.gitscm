@@ -1,46 +1,81 @@
 #!/usr/bin/env bash.origin.script
 
+function EXPORTS_get_head_rev {
+    git rev-parse HEAD
+}
+
 function EXPORTS_get_git_root {
     if [ -z "$1" ]; then
         cwd="$(pwd)"
     else
         cwd="$1"
     fi
-		if [ -f "$cwd/HEAD" ]; then
+    if [ -f "$cwd/HEAD" ]; then
         echo -n "$cwd"
         return 0
-		elif [ -d "$cwd/.git" ]; then
+    elif [ -d "$cwd/.git" ]; then
         echo -n "$cwd/.git"
         return 0
-		elif [ -f "$cwd/.git" ]; then
+    elif [ -f "$cwd/.git" ]; then
         EXPORTS_get_git_root "$cwd/$(cat $cwd/.git | perl -pe 's/^gitdir:\s+(.+?)$/$1/')"
         return $?
-		else
+    else
         EXPORTS_get_git_root "$(dirname $cwd)"
-		fi
-		return 1;
+    fi
+    return 1;
+}
+
+function EXPORTS_get_closest_parent_git_root {
+    if [ -z "$1" ]; then
+        cwd="$(pwd)"
+    else
+        cwd="$1"
+    fi
+    if [ -e "$cwd/.git" ]; then
+        echo -n "$cwd/.git"
+        return 0
+    else
+        EXPORTS_get_closest_parent_git_root "$(dirname $cwd)"
+    fi
+    return 1;
 }
 
 # @source http://stackoverflow.com/a/3879077/330439
+# @see https://stackoverflow.com/a/2659808
 function EXPORTS_is_clean {
-    if echo "$@" | grep -q -Ee '(\$|\s*)--ignore-dirty?(\s*|\$)'; then
-        [ -z "$BO_VERBOSE" ] || echo "[bash.origin.test][run.sh] is_pwd_working_tree_clean() 'true' due to --ignore-dirty"
+
+    if BO_has_cli_arg "--ignore-dirty" || BO_has_cli_arg "--ignore-dirt"; then
+        [ -z "$BO_VERBOSE" ] || echo "[bash.origin.test][run.sh] is_pwd_working_tree_clean() 'true' due to --ignore-dirt[y] ($(pwd))"
         return 0
-    elif echo "$npm_config_argv" | grep -q -Ee '"--ignore-dirty?"'; then
-        [ -z "$BO_VERBOSE" ] || echo "[bash.origin.test][run.sh] is_pwd_working_tree_clean() 'true' due to --ignore-dirty"
-        return 0
-    fi    
-    # TODO: Only stop if sub-path is dirty (use bash.origin.git to get git root and use helper)
+    fi
+
+    # TODO: Optionally only stop if sub-path is dirty?
+
     # Update the index
     git update-index -q --ignore-submodules --refresh
+
     # Disallow unstaged changes in the working tree
     if ! git diff-files --quiet --ignore-submodules --; then
+        [ -z "$BO_VERBOSE" ] || echo "[bash.origin.test][run.sh] is_pwd_working_tree_clean() 'false' due to unstaged changes ($(pwd))"
         return 1
     fi
+
     # Disallow uncommitted changes in the index
-    if ! git diff-index --cached --quiet HEAD --ignore-submodules --; then
+    if ! git diff-index --quiet --cached HEAD --ignore-submodules --; then
+        [ -z "$BO_VERBOSE" ] || echo "[bash.origin.test][run.sh] is_pwd_working_tree_clean() 'false' due to uncomitted changes ($(pwd))"
         return 1
     fi
+
+    # Disallow untracked files
+    pushd "$(dirname $(EXPORTS_get_closest_parent_git_root))" > /dev/null
+        untracked=$(git ls-files --exclude-standard --others --error-unmatch 2>&1)
+    popd > /dev/null
+    if [ "$untracked" != "" ]; then
+        [ -z "$BO_VERBOSE" ] || echo "[bash.origin.test][run.sh] is_pwd_working_tree_clean() 'false' due to untracked files ($(pwd))"
+        return 1
+    fi
+
+    [ -z "$BO_VERBOSE" ] || echo "[bash.origin.test][run.sh] is_pwd_working_tree_clean() 'true' due to all clean ($(pwd))"
     return 0
 }
 
@@ -51,30 +86,30 @@ function EXPORTS_ensure_remote {
 }
 
 function EXPORTS_ensure_local_excludes {
-		local repoPath="$(EXPORTS_get_git_root)"
+    local repoPath="$(EXPORTS_get_git_root)"
 
-		if [ -f "$repoPath/HEAD" ]; then
-				if [ ! -d "${repoPath}/info" ]; then
-						mkdir "${repoPath}/info"
-				fi
-				local excludeFilePath="${repoPath}/info/exclude"
-				if [ ! -e "${excludeFilePath}" ]; then
-						touch "${excludeFilePath}"
-				fi
-				# Ensure trailing newline
-				# @source http://stackoverflow.com/a/16198793/330439
-				[[ $(tail -c1 "$excludeFilePath") && -f "$excludeFilePath" ]] && echo '' >> "$excludeFilePath"
-				BO_log "$VERBOSE" "Checking rule '^${2}$' against exclude file: '$excludeFilePath'"
-				if ! grep -qe "^${2}$" "$excludeFilePath"; then
-						BO_log "$VERBOSE" "Append '${3}' to exclude file: '$excludeFilePath'"
-						echo -e "${3}" >> "$excludeFilePath"
-				fi
+    if [ -f "$repoPath/HEAD" ]; then
+        if [ ! -d "${repoPath}/info" ]; then
+            mkdir "${repoPath}/info"
+        fi
+        local excludeFilePath="${repoPath}/info/exclude"
+        if [ ! -e "${excludeFilePath}" ]; then
+            touch "${excludeFilePath}"
+        fi
+        # Ensure trailing newline
+        # @source http://stackoverflow.com/a/16198793/330439
+        [[ $(tail -c1 "$excludeFilePath") && -f "$excludeFilePath" ]] && echo '' >> "$excludeFilePath"
+        BO_log "$VERBOSE" "Checking rule '^${2}$' against exclude file: '$excludeFilePath'"
+        if ! grep -qe "^${2}$" "$excludeFilePath"; then
+            BO_log "$VERBOSE" "Append '${3}' to exclude file: '$excludeFilePath'"
+            echo -e "${3}" >> "$excludeFilePath"
+        fi
 
-				return 0
-		fi
+        return 0
+    fi
 
-		echo "[bash.origin.gitscm] TODO: Implement [ref: 02jnd763hflsi]"
-		return 1
+    echo "[bash.origin.gitscm] TODO: Implement [ref: 02jnd763hflsi]"
+    return 1
 }
 
 function EXPORTS_ensure_cloned_commit {
