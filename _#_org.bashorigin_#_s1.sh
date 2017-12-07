@@ -40,6 +40,10 @@ function EXPORTS_get_closest_parent_git_root {
     return 1;
 }
 
+function EXPORTS_get_branch {
+    git branch --no-color 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/\1/' -e 's/\//_/'
+}
+
 # @source http://stackoverflow.com/a/3879077/330439
 # @see https://stackoverflow.com/a/2659808
 function EXPORTS_is_clean {
