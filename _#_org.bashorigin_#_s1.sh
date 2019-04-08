@@ -149,7 +149,6 @@ function EXPORTS_ensure_cloned_commit {
     fi
 
     pushd "$finalClonePath" > /dev/null
-        # Go to github pages branch
         git checkout --track "origin/$checkoutRef" 2> /dev/null || ( \
             git checkout -b "$checkoutRef" 2> /dev/null || \
             git checkout "$checkoutRef" 2> /dev/null \
