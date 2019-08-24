@@ -21,6 +21,7 @@ function EXPORTS_get_git_root {
         return $?
     else
         EXPORTS_get_git_root "$(dirname $cwd)"
+        return $?
     fi
     return 1;
 }
